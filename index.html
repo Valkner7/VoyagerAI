@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voyager.AI - AI Tourist Helper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Earth Neutrals (Stone, Sand) with Terracotta and Deep Forest Green accents -->
+    <!-- Application Structure Plan: The SPA is structured as a centralized "Travel Hub" dashboard. This design was chosen because the problem statement describes a multi-faceted tool (itineraries, cabs, hotels, culture). A sidebar navigation allows quick switching between functional modules without losing context. Key interactions include dynamic itinerary generation based on user inputs, tabbed exploration of local culture to avoid cognitive overload, and an interactive pricing calculator combined with a comparative chart to build user trust. -->
+    <!-- Visualization & Content Choices: 
+         - Cab Price Comparison -> Goal: Compare our dynamic pricing with market rates -> Viz: Grouped Bar Chart -> Interaction: Hover tooltips, dynamic update based on distance slider -> Justification: Clearly proves cost-effectiveness to the user -> Library: Chart.js (NO SVG/Mermaid).
+         - Itinerary Builder -> Goal: Organize complex day plans -> Viz: Vertical Timeline (HTML/Tailwind) -> Interaction: Form input triggers JS to build dynamic HTML timeline -> Justification: Best for sequential time-based data.
+         - Local Explorer -> Goal: Organize diverse cultural data -> Viz: Tabbed Grid Layout -> Interaction: Click to filter categories -> Justification: Keeps interface clean while offering deep dives into Shopping/Heritage.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #FAFAF9; color: #1C1917; }
+        .font-outfit { font-family: 'Outfit', sans-serif; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 400px;
+        }
+        @media (max-width: 768px) {
+            .chart-container { height: 300px; }
+        }
+        .hide { display: none !important; }
+        .nav-active { background-color: #E7E5E4; font-weight: bold; border-left: 4px solid #C2410C; }
+        .tab-active { border-bottom: 2px solid #C2410C; color: #C2410C; font-weight: 600; }
+        
+        /* Custom Scrollbar for inner elements */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <nav class="w-full md:w-64 bg-stone-100 border-r border-stone-200 flex flex-col shadow-sm z-10 shrink-0">
+        <div class="p-6 border-b border-stone-200 flex items-center gap-2">
+            <span class="text-2xl">🧭</span>
+            <h1 class="text-2xl font-outfit font-black text-stone-800 tracking-tight">Voyager<span class="text-orange-600">.AI</span></h1>
+        </div>
+        <div class="flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto flex-1 p-2 md:p-4 gap-1">
+            <button data-target="dashboard" class="nav-btn nav-active flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+                <span>🏠</span> Dashboard
+            </button>
+            <button data-target="itinerary" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+                <span>📅</span> AI Itinerary
+            </button>
+            <button data-target="explorer" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+                <span>🏺</span> Local Explorer
+            </button>
+            <button data-target="transport" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+                <span>🚕</span> Transport & Prices
+            </button>
+            <button data-target="premium" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+                <span>⭐</span> Membership
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 overflow-y-auto bg-stone-50 relative">
+        
+        <section id="dashboard" class="content-section p-6 md:p-10 max-w-6xl mx-auto">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-stone-800 mb-2">Welcome to your AI Travel Hub</h2>
+                <p class="text-stone-600">This dashboard centralizes all your travel planning needs. From AI-generated itineraries to transparent cab pricing and local cultural deep-dives, explore the sections below to orchestrate the perfect trip tailored to your preferences and budget.</p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="document.querySelector('[data-target=\'itinerary\']').click()">
+                    <div>
+                        <div class="text-3xl mb-3">📅</div>
+                        <h3 class="font-bold text-lg mb-1">Smart Itineraries</h3>
+                        <p class="text-sm text-stone-500">Generate full-day plans based on seasons and optimal visiting hours.</p>
+                    </div>
+                    <div class="mt-4 text-orange-600 font-semibold text-sm">Plan Now &rarr;</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="document.querySelector('[data-target=\'transport\']').click()">
+                    <div>
+                        <div class="text-3xl mb-3">🚕</div>
+                        <h3 class="font-bold text-lg mb-1">Fair Transport</h3>
+                        <p class="text-sm text-stone-500">Book bikes, autos, or cars. See real-time market price comparisons.</p>
+                    </div>
+                    <div class="mt-4 text-orange-600 font-semibold text-sm">Compare Prices &rarr;</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="document.querySelector('[data-target=\'explorer\']').click()">
+                    <div>
+                        <div class="text-3xl mb-3">🛍️</div>
+                        <h3 class="font-bold text-lg mb-1">Culture & Heritage</h3>
+                        <p class="text-sm text-stone-500">Discover specialized markets, local cuisines, and historical landmarks.</p>
+                    </div>
+                    <div class="mt-4 text-orange-600 font-semibold text-sm">Explore Local &rarr;</div>
+                </div>
+            </div>
+
+            <!-- MINIMALIST AD BANNER -->
+            <div class="mb-10 bg-stone-100 border border-stone-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 hover:border-stone-300 transition cursor-pointer">
+                <div class="flex items-center gap-4">
+                    <div class="text-[10px] font-bold text-stone-500 uppercase tracking-widest border border-stone-300 px-2 py-1 rounded bg-white">Ad</div>
+                    <div class="text-sm text-stone-700"><strong>Travel Insurance by SafeJourney:</strong> Get full coverage for your upcoming trip starting at $2/day.</div>
+                </div>
+                <div class="text-sm font-bold text-stone-800 hover:text-orange-600 transition whitespace-nowrap">Learn More &rarr;</div>
+            </div>
+
+            <div class="bg-emerald-900 text-stone-100 p-8 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                    <h3 class="text-2xl font-bold mb-2">Unlock Priority Access</h3>
+                    <p class="text-emerald-100 max-w-xl">Join our membership program to get daily and weekly offers on travel, exclusive guide services, and priority hotel bookings.</p>
+                </div>
+                <button onclick="document.querySelector('[data-target=\'premium\']').click()" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold transition shrink-0 shadow-lg">View Plans</button>
+            </div>
+        </section>
+
+        <section id="itinerary" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-stone-800 mb-2">AI Day Planner</h2>
+                <p class="text-stone-600">Select your preferences below. Our AI organizes destinations by seasonal appropriateness, grouping nearby attractions and dedicated shopping hubs to optimize your time slot.</p>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-stone-200 h-fit">
+                    <h3 class="font-bold text-lg mb-4 border-b pb-2">Trip Parameters</h3>
+                    
+                    <label class="block text-sm font-semibold mb-1 text-stone-700">Season</label>
+                    <select id="itinerary-season" class="w-full mb-4 p-2 border rounded bg-stone-50">
+                        <option value="summer">Summer</option>
+                        <option value="winter">Winter</option>
+                        <option value="monsoon">Monsoon</option>
+                    </select>
+
+                    <label class="block text-sm font-semibold mb-1 text-stone-700">Focus Area</label>
+                    <select id="itinerary-focus" class="w-full mb-4 p-2 border rounded bg-stone-50">
+                        <option value="mixed">Mixed (Heritage & Shopping)</option>
+                        <option value="shopping">Specialty Clothing Markets</option>
+                        <option value="heritage">Historical Landmarks</option>
+                    </select>
+
+                    <label class="block text-sm font-semibold mb-1 text-stone-700">Start Time</label>
+                    <input type="time" id="itinerary-time" value="09:00" class="w-full mb-6 p-2 border rounded bg-stone-50">
+
+                    <button id="generate-btn" class="w-full bg-stone-800 hover:bg-stone-900 text-white py-3 rounded-lg font-bold transition">Generate Itinerary</button>
+                </div>
+
+                <div class="lg:col-span-2">
+                    <div id="timeline-container" class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+                        <div class="text-center text-stone-400 py-10" id="timeline-placeholder">
+                            <div class="text-4xl mb-3">🤖</div>
+                            <p>Configure parameters and click generate to build your optimized day plan.</p>
+                        </div>
+                        <div id="timeline-content" class="hide relative border-l-2 border-orange-200 ml-3 md:ml-6 pl-6 space-y-8 py-4">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="explorer" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-stone-800 mb-2">Local Culture & Destinations</h2>
+                <p class="text-stone-600">We prioritize authentic local experiences. Browse curated lists of cultural hotspots, heritage sites, and specialized markets. We provide directed visit times to help you avoid crowds.</p>
+            </header>
+
+            <div class="flex gap-4 border-b border-stone-200 mb-6 overflow-x-auto">
+                <button class="explore-tab tab-active pb-2 px-1 whitespace-nowrap" data-filter="all">All Places</button>
+                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800" data-filter="heritage">🏰 Heritage & Culture</button>
+                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800" data-filter="shopping">🛍️ Specialty Shopping</button>
+                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800" data-filter="food">🍲 Local Cuisine</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="explorer-grid">
+            </div>
+        </section>
+
+        <section id="transport" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-stone-800 mb-2">Transport & Market Comparison</h2>
+                <p class="text-stone-600">A fundamental part of our service. Book feasible transport tailored to your needs. Adjust the distance below to see real-time dynamic pricing compared against average market rates.</p>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+                    <h3 class="font-bold text-xl mb-4 text-stone-800">Dynamic Booking</h3>
+                    
+                    <div class="mb-6">
+                        <label class="flex justify-between text-sm font-semibold mb-2 text-stone-700">
+                            <span>Estimated Distance (km)</span>
+                            <span id="distance-val" class="text-orange-600">15 km</span>
+                        </label>
+                        <input type="range" id="distance-slider" min="1" max="50" value="15" class="w-full accent-orange-600">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50">
+                            <div class="flex items-center gap-3">
+                                <input type="radio" name="vehicle" value="bike" class="w-4 h-4 text-orange-600 accent-orange-600">
+                                <span class="text-2xl">🛵</span>
+                                <div>
+                                    <div class="font-bold text-stone-800">Motorbike</div>
+                                    <div class="text-xs text-stone-500">Solo, quick traffic navigation</div>
+                                </div>
+                            </div>
+                            <div class="font-bold text-lg text-emerald-700" id="price-bike">$0</div>
+                        </label>
+
+                        <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50">
+                            <div class="flex items-center gap-3">
+                                <input type="radio" name="vehicle" value="auto" class="w-4 h-4 text-orange-600 accent-orange-600" checked>
+                                <span class="text-2xl">🛺</span>
+                                <div>
+                                    <div class="font-bold text-stone-800">Auto-Rickshaw</div>
+                                    <div class="text-xs text-stone-500">Open-air local feel (1-3 pax)</div>
+                                </div>
+                            </div>
+                            <div class="font-bold text-lg text-emerald-700" id="price-auto">$0</div>
+                        </label>
+
+                        <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50">
+                            <div class="flex items-center gap-3">
+                                <input type="radio" name="vehicle" value="car" class="w-4 h-4 text-orange-600 accent-orange-600">
+                                <span class="text-2xl">🚕</span>
+                                <div>
+                                    <div class="font-bold text-stone-800">AC Car</div>
+                                    <div class="text-xs text-stone-500">Comfortable, weather-proof (1-4 pax)</div>
+                                </div>
+                            </div>
+                            <div class="font-bold text-lg text-emerald-700" id="price-car">$0</div>
+                        </label>
+                    </div>
+
+                    <button class="w-full mt-6 bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-bold transition shadow-md">Book Transport</button>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col">
+                    <h3 class="font-bold text-xl mb-2 text-stone-800">Market Price Comparison</h3>
+                    <p class="text-sm text-stone-500 mb-6">Transparency matters. See how our algorithmically optimized rates compare to standard existing companies.</p>
+                    <div class="flex-1 w-full flex items-center justify-center">
+                        <div class="chart-container">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="premium" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
+            <header class="mb-10 text-center max-w-3xl mx-auto">
+                <div class="inline-block bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-bold mb-4">Voyager.AI Priority</div>
+                <h2 class="text-4xl font-bold text-stone-800 mb-4">Elevate Your Travel Experience</h2>
+                <p class="text-stone-600">Subscribe to our membership plans to receive exclusive daily/weekly offers on travelling, dedicated expert guide services, and priority status for hotel and cab bookings.</p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div class="bg-white p-8 rounded-2xl border border-stone-200 shadow-sm hover:shadow-lg transition">
+                    <h3 class="text-2xl font-bold mb-2">Explorer Pass</h3>
+                    <p class="text-stone-500 mb-6">Perfect for weekend getaways and short trips.</p>
+                    <div class="text-4xl font-extrabold mb-6">$15<span class="text-lg text-stone-400 font-normal">/week</span></div>
+                    
+                    <ul class="space-y-4 mb-8">
+                        <li class="flex items-center gap-3"><span class="text-emerald-500">✔</span> Weekly curated travel discounts</li>
+                        <li class="flex items-center gap-3"><span class="text-emerald-500">✔</span> Standard Hotel & Cab booking</li>
+                        <li class="flex items-center gap-3"><span class="text-emerald-500">✔</span> Basic AI Itinerary generation</li>
+                    </ul>
+                    <button class="w-full bg-stone-100 hover:bg-stone-200 text-stone-800 py-3 rounded-lg font-bold transition">Choose Weekly</button>
+                </div>
+
+                <div class="bg-stone-900 text-stone-100 p-8 rounded-2xl border border-stone-800 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">RECOMMENDED</div>
+                    <h3 class="text-2xl font-bold mb-2">Nomad Premium</h3>
+                    <p class="text-stone-400 mb-6">The ultimate toolset for frequent travelers.</p>
+                    <div class="text-4xl font-extrabold mb-6">$45<span class="text-lg text-stone-500 font-normal">/month</span></div>
+                    
+                    <ul class="space-y-4 mb-8">
+                        <li class="flex items-center gap-3"><span class="text-orange-400">✔</span> <strong>Daily</strong> flash offers on transport & hotels</li>
+                        <li class="flex items-center gap-3"><span class="text-orange-400">✔</span> Priority queuing for Cabs & Services</li>
+                        <li class="flex items-center gap-3"><span class="text-orange-400">✔</span> Personal Human Guide availability</li>
+                        <li class="flex items-center gap-3"><span class="text-orange-400">✔</span> VIP Heritage site access passes</li>
+                    </ul>
+                    <button class="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-bold transition shadow-md">Get Priority Access</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const sections = document.querySelectorAll('.content-section');
+
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                navBtns.forEach(b => {
+                    b.classList.remove('nav-active');
+                    b.style.borderLeft = 'none';
+                });
+                btn.classList.add('nav-active');
+                btn.style.borderLeft = '4px solid #C2410C';
+
+                sections.forEach(s => s.classList.add('hide'));
+                const target = document.getElementById(btn.dataset.target);
+                target.classList.remove('hide');
+
+                if (btn.dataset.target === 'transport') {
+                    if (priceChart) priceChart.update();
+                }
+            });
+        });
+
+        const appState = {
+            rates: {
+                bike: { base: 0.5, market: 0.8 },
+                auto: { base: 1.2, market: 1.8 },
+                car: { base: 2.5, market: 3.5 }
+            },
+            distance: 15 
+        };
+
+        const distanceSlider = document.getElementById('distance-slider');
+        const distanceVal = document.getElementById('distance-val');
+        const pBike = document.getElementById('price-bike');
+        const pAuto = document.getElementById('price-auto');
+        const pCar = document.getElementById('price-car');
+
+        let priceChart;
+
+        function updatePrices() {
+            appState.distance = parseInt(distanceSlider.value);
+            distanceVal.textContent = appState.distance + ' km';
+
+            const ourBike = (appState.distance * appState.rates.bike.base).toFixed(2);
+            const ourAuto = (appState.distance * appState.rates.auto.base).toFixed(2);
+            const ourCar = (appState.distance * appState.rates.car.base).toFixed(2);
+
+            pBike.textContent = `$${ourBike}`;
+            pAuto.textContent = `$${ourAuto}`;
+            pCar.textContent = `$${ourCar}`;
+
+            if(priceChart) {
+                priceChart.data.datasets[0].data = [ourBike, ourAuto, ourCar];
+                priceChart.data.datasets[1].data = [
+                    (appState.distance * appState.rates.bike.market).toFixed(2),
+                    (appState.distance * appState.rates.auto.market).toFixed(2),
+                    (appState.distance * appState.rates.car.market).toFixed(2)
+                ];
+                priceChart.update();
+            }
+        }
+
+        distanceSlider.addEventListener('input', updatePrices);
+
+        function initChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Motorbike 🛵', 'Auto 🛺', 'AC Car 🚕'],
+                    datasets: [
+                        {
+                            label: 'Our Dynamic Price ($)',
+                            backgroundColor: '#C2410C', 
+                            data: [0, 0, 0],
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Avg Market Price ($)',
+                            backgroundColor: '#D6D3D1',
+                            data: [0, 0, 0],
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
+                        tooltip: {
+                            backgroundColor: 'rgba(28, 25, 23, 0.9)',
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 13 },
+                            padding: 10,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.raw;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#F5F5F4' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        initChart();
+        updatePrices(); 
+
+        const explorerData = [
+            { title: "Old City Spice Market", category: "shopping", icon: "🌶️", time: "07:00 AM - 10:00 AM", desc: "Specialty market for local spices. Best visited early to avoid crowds." },
+            { title: "Silk Weavers District", category: "shopping", icon: "👗", time: "11:00 AM - 04:00 PM", desc: "Renowned market for specific traditional clothing and hand-woven silks." },
+            { title: "Grand Royal Palace", category: "heritage", icon: "🏰", time: "09:00 AM - 01:00 PM", desc: "Historical center. Guided services available at entry." },
+            { title: "Lumina Boutique Stays", category: "heritage", icon: "🏨", time: "24/7", desc: "Luxury stays next to the palace. Show this app for a free welcome drink.", sponsored: true },
+            { title: "Ancient Stepwell", category: "heritage", icon: "🏛️", time: "04:00 PM - 06:00 PM", desc: "Beautiful architectural heritage site, perfect for evening photography." },
+            { title: "Street Food Alley", category: "food", icon: "🍢", time: "06:00 PM - 11:00 PM", desc: "Experience the authentic local culture through street delicacies." },
+            { title: "Traditional Thali House", category: "food", icon: "🍛", time: "12:30 PM - 03:00 PM", desc: "Sit-down cultural food experience offering regional specialties." },
+            { title: "Global Cafe Co.", category: "food", icon: "☕", time: "08:00 AM - 10:00 PM", desc: "Reliable high-speed Wi-Fi and premium artisan coffee. Your perfect pitstop.", sponsored: true }
+        ];
+
+        const explorerGrid = document.getElementById('explorer-grid');
+        const exploreTabs = document.querySelectorAll('.explore-tab');
+
+        function renderExplorer(filter = 'all') {
+            explorerGrid.innerHTML = '';
+            const filtered = filter === 'all' ? explorerData : explorerData.filter(d => d.category === filter);
+            
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `bg-white border ${item.sponsored ? 'border-orange-200 bg-orange-50/30' : 'border-stone-200'} rounded-xl p-5 hover:shadow-md transition flex flex-col relative`;
+                
+                const sponsorBadge = item.sponsored ? '<div class="absolute top-4 right-4 text-[10px] font-bold text-orange-800 uppercase tracking-widest border border-orange-200 px-2 py-0.5 rounded bg-white">Ad</div>' : '';
+                
+                card.innerHTML = `
+                    ${sponsorBadge}
+                    <div class="text-3xl mb-3">${item.icon}</div>
+                    <h4 class="font-bold text-stone-800 text-lg mb-1">${item.title}</h4>
+                    <span class="inline-block bg-stone-100 text-stone-600 text-xs px-2 py-1 rounded mb-3 w-fit border border-stone-200">
+                        ⏱️ Directed Time: ${item.time}
+                    </span>
+                    <p class="text-sm text-stone-600 flex-1">${item.desc}</p>
+                    <button class="mt-4 text-sm font-bold text-orange-600 text-left hover:text-orange-800">
+                        ${item.sponsored ? 'View Offer &rarr;' : 'Add to Itinerary +'}
+                    </button>
+                `;
+                explorerGrid.appendChild(card);
+            });
+        }
+
+        exploreTabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                exploreTabs.forEach(t => {
+                    t.classList.remove('tab-active');
+                    t.classList.add('text-stone-500');
+                });
+                e.target.classList.add('tab-active');
+                e.target.classList.remove('text-stone-500');
+                renderExplorer(e.target.dataset.filter);
+            });
+        });
+
+        renderExplorer();
+
+        document.getElementById('generate-btn').addEventListener('click', () => {
+            const season = document.getElementById('itinerary-season').value;
+            const focus = document.getElementById('itinerary-focus').value;
+            const startTime = document.getElementById('itinerary-time').value;
+
+            document.getElementById('timeline-placeholder').classList.add('hide');
+            const content = document.getElementById('timeline-content');
+            content.classList.remove('hide');
+            
+            content.innerHTML = '';
+
+            let timeParts = startTime.split(':');
+            let hour = parseInt(timeParts[0]);
+
+            const steps = [
+                { title: "Hotel Pickup & Guide Briefing", desc: "Meet your AI-assigned local guide.", icon: "🚕" },
+                { title: focus === 'shopping' ? "Silk Weavers District" : "Grand Royal Palace", desc: season === 'summer' ? "Morning visit to beat the heat." : "Comfortable morning exploration.", icon: focus === 'shopping' ? "👗" : "🏰" },
+                { title: "Local Cuisine Lunch", desc: "Pre-booked table at Traditional Thali House.", icon: "🍛" },
+                { title: focus === 'heritage' ? "Ancient Stepwell" : "Old City Spice Market", desc: "Afternoon activity grouped by proximity.", icon: focus === 'heritage' ? "🏛️" : "🌶️" },
+                { title: "Return Drop-off", desc: "Dynamic cab arranged based on real-time traffic.", icon: "🏨" }
+            ];
+
+            steps.forEach((step, index) => {
+                const stepEl = document.createElement('div');
+                stepEl.className = 'relative';
+                
+                let timeStr = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
+                
+                stepEl.innerHTML = `
+                    <div class="absolute -left-[35px] md:-left-[47px] bg-orange-100 border-2 border-orange-500 text-xl w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-sm">${step.icon}</div>
+                    <div class="bg-stone-50 border border-stone-100 p-4 rounded-lg shadow-sm">
+                        <div class="text-xs font-bold text-orange-600 mb-1">${timeStr}</div>
+                        <h4 class="font-bold text-stone-800 text-lg">${step.title}</h4>
+                        <p class="text-sm text-stone-600 mt-1">${step.desc}</p>
+                    </div>
+                `;
+                content.appendChild(stepEl);
+                hour += Math.floor(Math.random() * 2) + 2; 
+                if(hour > 23) hour = hour - 24;
+            });
+        });
+
+    </script>
+</body>
+</html>
