@@ -18,6 +18,10 @@ my_secret_key = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=my_secret_key)
 
 app = FastAPI(title="Voyager.AI Production Engine")
+print("FASTAPI APP LOADED")
+print("Registered routes:")
+for route in app.routes:
+    print(route.path)
 
 # Full CORS layer for secure communication node validation
 app.add_middleware(
@@ -234,3 +238,11 @@ async def generate_itinerary(req: ItineraryRequest):
             return processed_fallback
             
         raise HTTPException(status_code=500, detail=str(e))
+    @app.get("/chatgpt-test")
+    async def chatgpt_test():
+     return {
+        "message": "If you can see this, Render is using the correct main.py"
+     }
+    print("FINAL REGISTERED ROUTES:")
+for route in app.routes:
+    print(route.path)
