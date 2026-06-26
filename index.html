@@ -1,22 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voyager.AI - AI Tourist Helper</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Warm Earth Neutrals (Stone, Sand) with Terracotta and Deep Forest Green accents -->
-    <!-- Application Structure Plan: The SPA is structured as a centralized "Travel Hub" dashboard. This design was chosen because the problem statement describes a multi-faceted tool (itineraries, cabs, hotels, culture). A sidebar navigation allows quick switching between functional modules without losing context. Key interactions include dynamic itinerary generation based on user inputs, tabbed exploration of local culture to avoid cognitive overload, and an interactive pricing calculator combined with a comparative chart to build user trust. -->
-    <!-- Visualization & Content Choices: 
-         - Cab Price Comparison -> Goal: Compare our dynamic pricing with market rates -> Viz: Grouped Bar Chart -> Interaction: Hover tooltips, dynamic update based on distance slider -> Justification: Clearly proves cost-effectiveness to the user -> Library: Chart.js (NO SVG/Mermaid).
-         - Itinerary Builder -> Goal: Organize complex day plans -> Viz: Vertical Timeline (HTML/Tailwind) -> Interaction: Form input triggers JS to build dynamic HTML timeline -> Justification: Best for sequential time-based data.
-         - Local Explorer -> Goal: Organize diverse cultural data -> Viz: Tabbed Grid Layout -> Interaction: Click to filter categories -> Justification: Keeps interface clean while offering deep dives into Shopping/Heritage.
-    -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #FAFAF9; color: #1C1917; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .font-outfit { font-family: 'Outfit', sans-serif; }
         .chart-container {
             position: relative;
@@ -27,137 +28,178 @@
             height: 40vh;
             max-height: 400px;
         }
-        @media (max-width: 768px) {
-            .chart-container { height: 300px; }
-        }
+        @media (max-width: 768px) { .chart-container { height: 300px; } }
         .hide { display: none !important; }
         .nav-active { background-color: #E7E5E4; font-weight: bold; border-left: 4px solid #C2410C; }
+        .dark .nav-active { background-color: #292524; border-left: 4px solid #EA580C; }
         .tab-active { border-bottom: 2px solid #C2410C; color: #C2410C; font-weight: 600; }
+        .dark .tab-active { border-bottom: 2px solid #EA580C; color: #EA580C; }
         
-        /* Custom Scrollbar for inner elements */
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #57534e; }
         ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
     </style>
 </head>
-<body class="flex flex-col md:flex-row h-screen overflow-hidden">
+<body class="flex flex-col md:flex-row h-screen overflow-hidden bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-stone-100 transition-colors duration-300">
 
-    <nav class="w-full md:w-64 bg-stone-100 border-r border-stone-200 flex flex-col shadow-sm z-10 shrink-0">
-        <div class="p-6 border-b border-stone-200 flex items-center gap-2">
-            <span class="text-2xl">🧭</span>
-            <h1 class="text-2xl font-outfit font-black text-stone-800 tracking-tight">Voyager<span class="text-orange-600">.AI</span></h1>
+    <div id="offline-banner" class="hide absolute top-0 w-full bg-red-600 text-white text-center py-1 text-xs font-bold z-50 shadow-md">
+        ⚠️ You are currently offline. Displaying cached local data.
+    </div>
+
+    <div id="auth-modal" class="hide fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
+        <div class="bg-white dark:bg-stone-800 p-8 rounded-2xl shadow-2xl w-full max-w-md relative">
+            <button id="close-auth" class="absolute top-4 right-4 text-stone-400 hover:text-stone-800 dark:hover:text-white text-xl">&times;</button>
+            <h2 class="text-3xl font-bold mb-2 font-outfit">Welcome Back</h2>
+            <p class="text-stone-500 dark:text-stone-400 text-sm mb-6">Sign in to sync your AI itineraries across devices.</p>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Email</label>
+                    <input type="email" class="w-full p-3 border border-stone-200 dark:border-stone-700 rounded-lg bg-stone-50 dark:bg-stone-900 outline-none focus:border-orange-500" placeholder="aditya@example.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Password</label>
+                    <input type="password" class="w-full p-3 border border-stone-200 dark:border-stone-700 rounded-lg bg-stone-50 dark:bg-stone-900 outline-none focus:border-orange-500" placeholder="••••••••">
+                </div>
+                <button type="button" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-bold transition shadow-md">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <nav class="w-full md:w-64 bg-stone-100 dark:bg-stone-950 border-r border-stone-200 dark:border-stone-800 flex flex-col shadow-sm z-10 shrink-0 transition-colors">
+        <div class="p-6 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🧭</span>
+                <h1 class="text-2xl font-outfit font-black tracking-tight">Boom Voyager<span class="text-orange-600">.AI</span></h1>
+            </div>
+            <button id="theme-toggle" class="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-stone-800 transition">🌙</button>
         </div>
         <div class="flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto flex-1 p-2 md:p-4 gap-1">
-            <button data-target="dashboard" class="nav-btn nav-active flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+            <button data-target="dashboard" class="nav-btn nav-active flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition whitespace-nowrap">
                 <span>🏠</span> Dashboard
             </button>
-            <button data-target="itinerary" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+            <button data-target="itinerary" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition whitespace-nowrap">
                 <span>📅</span> AI Itinerary
             </button>
-            <button data-target="explorer" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+            <button data-target="explorer" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition whitespace-nowrap">
                 <span>🏺</span> Local Explorer
             </button>
-            <button data-target="transport" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+            <button data-target="transport" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition whitespace-nowrap">
                 <span>🚕</span> Transport & Prices
             </button>
-            <button data-target="premium" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 hover:bg-stone-200 transition whitespace-nowrap">
+            <button data-target="premium" class="nav-btn flex items-center gap-3 px-4 py-3 rounded-md text-left text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition whitespace-nowrap">
                 <span>⭐</span> Membership
+            </button>
+        </div>
+        <div class="p-4 border-t border-stone-200 dark:border-stone-800">
+            <button id="open-auth" class="w-full flex items-center gap-3 px-4 py-3 rounded-md text-left bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 transition">
+                <div class="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold">U</div>
+                <span class="font-semibold text-sm">Sign In</span>
             </button>
         </div>
     </nav>
 
-    <main class="flex-1 overflow-y-auto bg-stone-50 relative">
+    <main class="flex-1 overflow-y-auto relative">
         
         <section id="dashboard" class="content-section p-6 md:p-10 max-w-6xl mx-auto">
             <header class="mb-8">
-                <h2 class="text-3xl font-bold text-stone-800 mb-2">Welcome to your AI Travel Hub</h2>
-                <p class="text-stone-600">This dashboard centralizes all your travel planning needs. From AI-generated itineraries to transparent cab pricing and local cultural deep-dives, explore the sections below to orchestrate the perfect trip tailored to your preferences and budget.</p>
+                <h2 class="text-3xl font-bold mb-2">Welcome to your AI Travel Hub</h2>
+                <p class="text-stone-600 dark:text-stone-400">This dashboard centralizes all your travel planning needs. From AI-generated itineraries to transparent cab pricing and local cultural deep-dives.</p>
             </header>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="document.querySelector('[data-target=\'itinerary\']').click()">
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="UIManager.switchSection('itinerary')">
                     <div>
                         <div class="text-3xl mb-3">📅</div>
                         <h3 class="font-bold text-lg mb-1">Smart Itineraries</h3>
-                        <p class="text-sm text-stone-500">Generate full-day plans based on seasons and optimal visiting hours.</p>
+                        <p class="text-sm text-stone-500 dark:text-stone-400">Generate full-day plans based on seasons and optimal visiting hours.</p>
                     </div>
                     <div class="mt-4 text-orange-600 font-semibold text-sm">Plan Now &rarr;</div>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="document.querySelector('[data-target=\'transport\']').click()">
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="UIManager.switchSection('transport')">
                     <div>
                         <div class="text-3xl mb-3">🚕</div>
                         <h3 class="font-bold text-lg mb-1">Fair Transport</h3>
-                        <p class="text-sm text-stone-500">Book bikes, autos, or cars. See real-time market price comparisons.</p>
+                        <p class="text-sm text-stone-500 dark:text-stone-400">Book bikes, autos, or cars. See real-time market price comparisons.</p>
                     </div>
                     <div class="mt-4 text-orange-600 font-semibold text-sm">Compare Prices &rarr;</div>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="document.querySelector('[data-target=\'explorer\']').click()">
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col justify-between hover:shadow-md transition cursor-pointer" onclick="UIManager.switchSection('explorer')">
                     <div>
                         <div class="text-3xl mb-3">🛍️</div>
                         <h3 class="font-bold text-lg mb-1">Culture & Heritage</h3>
-                        <p class="text-sm text-stone-500">Discover specialized markets, local cuisines, and historical landmarks.</p>
+                        <p class="text-sm text-stone-500 dark:text-stone-400">Discover specialized markets, local cuisines, and historical landmarks.</p>
                     </div>
                     <div class="mt-4 text-orange-600 font-semibold text-sm">Explore Local &rarr;</div>
                 </div>
             </div>
 
-            <!-- MINIMALIST AD BANNER -->
-            <div class="mb-10 bg-stone-100 border border-stone-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 hover:border-stone-300 transition cursor-pointer">
+            <div class="mb-10 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 cursor-pointer">
                 <div class="flex items-center gap-4">
-                    <div class="text-[10px] font-bold text-stone-500 uppercase tracking-widest border border-stone-300 px-2 py-1 rounded bg-white">Ad</div>
-                    <div class="text-sm text-stone-700"><strong>Travel Insurance by SafeJourney:</strong> Get full coverage for your upcoming trip starting at $2/day.</div>
+                    <div class="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-widest border border-stone-300 dark:border-stone-600 px-2 py-1 rounded bg-white dark:bg-stone-900">Ad</div>
+                    <div class="text-sm"><strong>Travel Insurance by SafeJourney:</strong> Get full coverage for your upcoming trip starting at $2/day.</div>
                 </div>
-                <div class="text-sm font-bold text-stone-800 hover:text-orange-600 transition whitespace-nowrap">Learn More &rarr;</div>
+                <div class="text-sm font-bold hover:text-orange-600 transition whitespace-nowrap">Learn More &rarr;</div>
             </div>
 
             <div class="bg-emerald-900 text-stone-100 p-8 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6">
                 <div>
                     <h3 class="text-2xl font-bold mb-2">Unlock Priority Access</h3>
-                    <p class="text-emerald-100 max-w-xl">Join our membership program to get daily and weekly offers on travel, exclusive guide services, and priority hotel bookings.</p>
+                    <p class="text-emerald-100 max-w-xl text-sm md:text-base">Join our membership program to get daily offers on travel, exclusive guide services, and priority bookings.</p>
                 </div>
-                <button onclick="document.querySelector('[data-target=\'premium\']').click()" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold transition shrink-0 shadow-lg">View Plans</button>
+                <button onclick="UIManager.switchSection('premium')" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold transition shadow-lg shrink-0">View Plans</button>
             </div>
         </section>
 
         <section id="itinerary" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
             <header class="mb-8">
-                <h2 class="text-3xl font-bold text-stone-800 mb-2">AI Day Planner</h2>
-                <p class="text-stone-600">Select your preferences below. Our AI organizes destinations by seasonal appropriateness, grouping nearby attractions and dedicated shopping hubs to optimize your time slot.</p>
+                <h2 class="text-3xl font-bold mb-2">AI Day Planner</h2>
+                <p class="text-stone-600 dark:text-stone-400">Select your preferences below. Our AI organizes destinations by seasonal appropriateness, grouping nearby attractions to optimize your time.</p>
             </header>
+            <div id="itinerary-map-container" class="w-full h-48 md:h-64 rounded-xl mb-6 border border-stone-200 dark:border-stone-700 shadow-sm overflow-hidden bg-stone-200 dark:bg-stone-800">
+    <div id="itinerary-map" class="w-full h-full"></div>
+</div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-stone-200 h-fit">
-                    <h3 class="font-bold text-lg mb-4 border-b pb-2">Trip Parameters</h3>
+                <div class="lg:col-span-1 bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 h-fit">
+                    <h3 class="font-bold text-lg mb-4 border-b border-stone-200 dark:border-stone-700 pb-2">Trip Parameters</h3>
                     
-                    <label class="block text-sm font-semibold mb-1 text-stone-700">Season</label>
-                    <select id="itinerary-season" class="w-full mb-4 p-2 border rounded bg-stone-50">
+                    <label class="block text-sm font-semibold mb-1">Season</label>
+                    <select id="itinerary-season" class="w-full mb-4 p-2 border border-stone-200 dark:border-stone-700 rounded bg-stone-50 dark:bg-stone-900 outline-none">
                         <option value="summer">Summer</option>
                         <option value="winter">Winter</option>
                         <option value="monsoon">Monsoon</option>
                     </select>
 
-                    <label class="block text-sm font-semibold mb-1 text-stone-700">Focus Area</label>
-                    <select id="itinerary-focus" class="w-full mb-4 p-2 border rounded bg-stone-50">
+                    <label class="block text-sm font-semibold mb-1">Focus Area</label>
+                    <select id="itinerary-focus" class="w-full mb-4 p-2 border border-stone-200 dark:border-stone-700 rounded bg-stone-50 dark:bg-stone-900 outline-none">
                         <option value="mixed">Mixed (Heritage & Shopping)</option>
                         <option value="shopping">Specialty Clothing Markets</option>
                         <option value="heritage">Historical Landmarks</option>
                     </select>
 
-                    <label class="block text-sm font-semibold mb-1 text-stone-700">Start Time</label>
-                    <input type="time" id="itinerary-time" value="09:00" class="w-full mb-6 p-2 border rounded bg-stone-50">
+                    <label class="block text-sm font-semibold mb-1">Start Time</label>
+                    <input type="time" id="itinerary-time" value="09:00" class="w-full mb-6 p-2 border border-stone-200 dark:border-stone-700 rounded bg-stone-50 dark:bg-stone-900 outline-none">
 
-                    <button id="generate-btn" class="w-full bg-stone-800 hover:bg-stone-900 text-white py-3 rounded-lg font-bold transition">Generate Itinerary</button>
+                    <button id="generate-btn" class="w-full bg-stone-800 dark:bg-stone-700 hover:bg-stone-900 dark:hover:bg-stone-600 text-white py-3 rounded-lg font-bold transition">Generate Itinerary</button>
+                    <p class="text-[10px] text-center text-stone-400 dark:text-stone-500 mt-2">✨ Tip: Click multiple times to explore unique alternative routes!</p>
                 </div>
 
                 <div class="lg:col-span-2">
-                    <div id="timeline-container" class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
-                        <div class="text-center text-stone-400 py-10" id="timeline-placeholder">
+                    <div id="timeline-container" class="bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 min-h-[300px] flex flex-col relative">
+                        <div class="text-center text-stone-400 dark:text-stone-500 py-10 my-auto" id="timeline-placeholder">
                             <div class="text-4xl mb-3">🤖</div>
                             <p>Configure parameters and click generate to build your optimized day plan.</p>
                         </div>
-                        <div id="timeline-content" class="hide relative border-l-2 border-orange-200 ml-3 md:ml-6 pl-6 space-y-8 py-4">
+                        
+                        <div class="text-center py-10 my-auto hide flex flex-col items-center" id="timeline-loader">
+                            <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-orange-600 mb-4"></div>
+                            <p class="text-stone-600 dark:text-stone-400 font-bold tracking-wide animate-pulse">AI is mapping your route...</p>
                         </div>
+
+                        <div id="timeline-content" class="hide relative border-l-2 border-orange-200 dark:border-orange-900 ml-3 md:ml-6 pl-6 space-y-8 py-4"></div>
                     </div>
                 </div>
             </div>
@@ -165,33 +207,42 @@
 
         <section id="explorer" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
             <header class="mb-8">
-                <h2 class="text-3xl font-bold text-stone-800 mb-2">Local Culture & Destinations</h2>
-                <p class="text-stone-600">We prioritize authentic local experiences. Browse curated lists of cultural hotspots, heritage sites, and specialized markets. We provide directed visit times to help you avoid crowds.</p>
+                <h2 class="text-3xl font-bold mb-2">Local Culture & Destinations</h2>
+                <p class="text-stone-600 dark:text-stone-400">Browse curated lists of cultural hotspots, heritage sites, and specialized markets. View them dynamically mapped below.</p>
             </header>
 
-            <div class="flex gap-4 border-b border-stone-200 mb-6 overflow-x-auto">
-                <button class="explore-tab tab-active pb-2 px-1 whitespace-nowrap" data-filter="all">All Places</button>
-                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800" data-filter="heritage">🏰 Heritage & Culture</button>
-                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800" data-filter="shopping">🛍️ Specialty Shopping</button>
-                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800" data-filter="food">🍲 Local Cuisine</button>
+            <div id="map-container" class="w-full h-64 md:h-80 rounded-xl mb-6 z-0 border border-stone-200 dark:border-stone-700 shadow-sm overflow-hidden bg-stone-200 dark:bg-stone-800">
+                <div id="explorer-map" class="w-full h-full"></div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="explorer-grid">
+            <div class="flex gap-4 border-b border-stone-200 dark:border-stone-700 mb-6 overflow-x-auto">
+                <button class="explore-tab tab-active pb-2 px-1 whitespace-nowrap" data-filter="all">All Places</button>
+                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800 dark:hover:text-stone-200" data-filter="heritage">🏰 Heritage & Culture</button>
+                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800 dark:hover:text-stone-200" data-filter="shopping">🛍️ Specialty Shopping</button>
+                <button class="explore-tab pb-2 px-1 whitespace-nowrap text-stone-500 hover:text-stone-800 dark:hover:text-stone-200" data-filter="food">🍲 Local Cuisine</button>
+            </div>
+
+            <div id="explorer-container" class="min-h-[200px]">
+                <div class="text-center py-10 flex flex-col items-center hide" id="explorer-loader">
+                    <div class="animate-spin rounded-full h-10 w-10 border-t-4 border-b-4 border-stone-400 mb-4"></div>
+                    <p class="text-stone-500 font-bold tracking-wide animate-pulse">Fetching locations...</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="explorer-grid"></div>
             </div>
         </section>
 
         <section id="transport" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
             <header class="mb-8">
-                <h2 class="text-3xl font-bold text-stone-800 mb-2">Transport & Market Comparison</h2>
-                <p class="text-stone-600">A fundamental part of our service. Book feasible transport tailored to your needs. Adjust the distance below to see real-time dynamic pricing compared against average market rates.</p>
+                <h2 class="text-3xl font-bold mb-2">Transport & Market Comparison</h2>
+                <p class="text-stone-600 dark:text-stone-400">Book feasible transport tailored to your needs. Adjust the distance below to see real-time dynamic pricing.</p>
             </header>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
-                    <h3 class="font-bold text-xl mb-4 text-stone-800">Dynamic Booking</h3>
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700">
+                    <h3 class="font-bold text-xl mb-4">Dynamic Booking</h3>
                     
                     <div class="mb-6">
-                        <label class="flex justify-between text-sm font-semibold mb-2 text-stone-700">
+                        <label class="flex justify-between text-sm font-semibold mb-2">
                             <span>Estimated Distance (km)</span>
                             <span id="distance-val" class="text-orange-600">15 km</span>
                         </label>
@@ -199,50 +250,49 @@
                     </div>
 
                     <div class="space-y-4">
-                        <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50">
+                        <label class="flex items-center justify-between p-4 border border-stone-200 dark:border-stone-700 rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50 dark:bg-stone-900">
                             <div class="flex items-center gap-3">
                                 <input type="radio" name="vehicle" value="bike" class="w-4 h-4 text-orange-600 accent-orange-600">
                                 <span class="text-2xl">🛵</span>
                                 <div>
-                                    <div class="font-bold text-stone-800">Motorbike</div>
-                                    <div class="text-xs text-stone-500">Solo, quick traffic navigation</div>
+                                    <div class="font-bold">Motorbike</div>
+                                    <div class="text-xs text-stone-500 dark:text-stone-400">Solo, quick traffic navigation</div>
                                 </div>
                             </div>
-                            <div class="font-bold text-lg text-emerald-700" id="price-bike">$0</div>
+                            <div class="font-bold text-lg text-emerald-600 dark:text-emerald-400" id="price-bike">$0</div>
                         </label>
-
-                        <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50">
+                        <label class="flex items-center justify-between p-4 border border-stone-200 dark:border-stone-700 rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50 dark:bg-stone-900">
                             <div class="flex items-center gap-3">
                                 <input type="radio" name="vehicle" value="auto" class="w-4 h-4 text-orange-600 accent-orange-600" checked>
                                 <span class="text-2xl">🛺</span>
                                 <div>
-                                    <div class="font-bold text-stone-800">Auto-Rickshaw</div>
-                                    <div class="text-xs text-stone-500">Open-air local feel (1-3 pax)</div>
+                                    <div class="font-bold">Auto-Rickshaw</div>
+                                    <div class="text-xs text-stone-500 dark:text-stone-400">Open-air local feel (1-3 pax)</div>
                                 </div>
                             </div>
-                            <div class="font-bold text-lg text-emerald-700" id="price-auto">$0</div>
+                            <div class="font-bold text-lg text-emerald-600 dark:text-emerald-400" id="price-auto">$0</div>
                         </label>
 
-                        <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50">
+                        <label class="flex items-center justify-between p-4 border border-stone-200 dark:border-stone-700 rounded-lg cursor-pointer hover:border-orange-500 transition-colors bg-stone-50 dark:bg-stone-900">
                             <div class="flex items-center gap-3">
                                 <input type="radio" name="vehicle" value="car" class="w-4 h-4 text-orange-600 accent-orange-600">
                                 <span class="text-2xl">🚕</span>
                                 <div>
-                                    <div class="font-bold text-stone-800">AC Car</div>
-                                    <div class="text-xs text-stone-500">Comfortable, weather-proof (1-4 pax)</div>
+                                    <div class="font-bold">AC Car</div>
+                                    <div class="text-xs text-stone-500 dark:text-stone-400">Comfortable, weather-proof (1-4 pax)</div>
                                 </div>
                             </div>
-                            <div class="font-bold text-lg text-emerald-700" id="price-car">$0</div>
+                            <div class="font-bold text-lg text-emerald-600 dark:text-emerald-400" id="price-car">$0</div>
                         </label>
                     </div>
 
                     <button class="w-full mt-6 bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-bold transition shadow-md">Book Transport</button>
                 </div>
 
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col">
-                    <h3 class="font-bold text-xl mb-2 text-stone-800">Market Price Comparison</h3>
-                    <p class="text-sm text-stone-500 mb-6">Transparency matters. See how our algorithmically optimized rates compare to standard existing companies.</p>
-                    <div class="flex-1 w-full flex items-center justify-center">
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col">
+                    <h3 class="font-bold text-xl mb-2">Market Price Comparison</h3>
+                    <p class="text-sm text-stone-500 dark:text-stone-400 mb-6">See how our algorithmically optimized rates compare to standard existing companies.</p>
+                    <div class="flex-1 w-full flex items-center justify-center bg-stone-50 dark:bg-stone-900 rounded-lg p-2">
                         <div class="chart-container">
                             <canvas id="priceChart"></canvas>
                         </div>
@@ -253,15 +303,15 @@
 
         <section id="premium" class="content-section p-6 md:p-10 max-w-6xl mx-auto hide">
             <header class="mb-10 text-center max-w-3xl mx-auto">
-                <div class="inline-block bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-bold mb-4">Voyager.AI Priority</div>
-                <h2 class="text-4xl font-bold text-stone-800 mb-4">Elevate Your Travel Experience</h2>
-                <p class="text-stone-600">Subscribe to our membership plans to receive exclusive daily/weekly offers on travelling, dedicated expert guide services, and priority status for hotel and cab bookings.</p>
+                <div class="inline-block bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 px-3 py-1 rounded-full text-sm font-bold mb-4 border border-orange-200 dark:border-orange-700">Voyager.AI Priority</div>
+                <h2 class="text-4xl font-bold mb-4">Elevate Your Travel Experience</h2>
+                <p class="text-stone-600 dark:text-stone-400">Subscribe to our membership plans to receive exclusive offers, expert guide services, and priority status.</p>
             </header>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                <div class="bg-white p-8 rounded-2xl border border-stone-200 shadow-sm hover:shadow-lg transition">
+                <div class="bg-white dark:bg-stone-800 p-8 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-lg transition">
                     <h3 class="text-2xl font-bold mb-2">Explorer Pass</h3>
-                    <p class="text-stone-500 mb-6">Perfect for weekend getaways and short trips.</p>
+                    <p class="text-stone-500 dark:text-stone-400 mb-6">Perfect for weekend getaways and short trips.</p>
                     <div class="text-4xl font-extrabold mb-6">$15<span class="text-lg text-stone-400 font-normal">/week</span></div>
                     
                     <ul class="space-y-4 mb-8">
@@ -269,10 +319,10 @@
                         <li class="flex items-center gap-3"><span class="text-emerald-500">✔</span> Standard Hotel & Cab booking</li>
                         <li class="flex items-center gap-3"><span class="text-emerald-500">✔</span> Basic AI Itinerary generation</li>
                     </ul>
-                    <button class="w-full bg-stone-100 hover:bg-stone-200 text-stone-800 py-3 rounded-lg font-bold transition">Choose Weekly</button>
+                    <button class="w-full bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 py-3 rounded-lg font-bold transition">Choose Weekly</button>
                 </div>
 
-                <div class="bg-stone-900 text-stone-100 p-8 rounded-2xl border border-stone-800 shadow-xl relative overflow-hidden">
+                <div class="bg-stone-900 dark:bg-black text-stone-100 p-8 rounded-2xl border border-stone-800 shadow-xl relative overflow-hidden">
                     <div class="absolute top-0 right-0 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">RECOMMENDED</div>
                     <h3 class="text-2xl font-bold mb-2">Nomad Premium</h3>
                     <p class="text-stone-400 mb-6">The ultimate toolset for frequent travelers.</p>
@@ -292,215 +342,574 @@
     </main>
 
     <script>
-        const navBtns = document.querySelectorAll('.nav-btn');
-        const sections = document.querySelectorAll('.content-section');
-
-        navBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                navBtns.forEach(b => {
-                    b.classList.remove('nav-active');
-                    b.style.borderLeft = 'none';
-                });
-                btn.classList.add('nav-active');
-                btn.style.borderLeft = '4px solid #C2410C';
-
-                sections.forEach(s => s.classList.add('hide'));
-                const target = document.getElementById(btn.dataset.target);
-                target.classList.remove('hide');
-
-                if (btn.dataset.target === 'transport') {
-                    if (priceChart) priceChart.update();
-                }
-            });
-        });
-
-        const appState = {
-            rates: {
-                bike: { base: 0.5, market: 0.8 },
-                auto: { base: 1.2, market: 1.8 },
-                car: { base: 2.5, market: 3.5 }
+        // 1. GLOBAL STATE (FULLY RESTORED FRONTEND DATA DICTIONARIES)
+        const state = {
+            ui: {
+                activeSection: 'dashboard',
+                activeExplorerTab: 'all',
+                theme: 'light',
+                isOffline: !navigator.onLine
             },
-            distance: 15 
+            userInputs: {
+                distance: 15,
+                itinerary: { season: 'summer', focus: 'mixed', startTime: '09:00', variant: 0 }
+            },
+            data: {
+                places: [
+                    { title: "Old City Spice Market", category: "shopping", icon: "🌶️", time: "07:00 AM - 10:00 AM", desc: "Specialty market for local spices. Best visited early.", coords: [28.6550, 77.2243] },
+                    { title: "Silk Weavers District", category: "shopping", icon: "👗", time: "11:00 AM - 04:00 PM", desc: "Renowned market for hand-woven silks.", coords: [28.6448, 77.2167] },
+                    { title: "Grand Royal Palace", category: "heritage", icon: "🏰", time: "09:00 AM - 01:00 PM", desc: "Historical center. Guided services available.", coords: [28.6562, 77.2410] },
+                    { title: "Lumina Boutique Stays", category: "heritage", icon: "🏨", time: "24/7", desc: "Luxury stays. Show app for free welcome drink.", sponsored: true, coords: [28.6500, 77.2300] },
+                    { title: "Ancient Stepwell", category: "heritage", icon: "🏛️", time: "04:00 PM - 06:00 PM", desc: "Beautiful architectural heritage site.", coords: [28.6266, 77.2255] },
+                    { title: "Street Food Alley", category: "food", icon: "🍢", time: "06:00 PM - 11:00 PM", desc: "Authentic local culture through street delicacies.", coords: [28.6505, 77.2305] },
+                    { title: "Traditional Thali House", category: "food", icon: "🍛", time: "12:30 PM - 03:00 PM", desc: "Sit-down cultural food experience.", coords: [28.6328, 77.2197] },
+                    { title: "Global Cafe Co.", category: "food", icon: "☕", time: "08:00 AM - 10:00 PM", desc: "High-speed Wi-Fi and artisan coffee.", sponsored: true, coords: [28.6304, 77.2177] }
+                ],
+                rates: {
+                    bike: { base: 0.5, market: 0.8 },
+                    auto: { base: 1.2, market: 1.8 },
+                    car: { base: 2.5, market: 3.5 }
+                }
+            },
+            // Inside your global const state = { ... }
+chartInstance: null,
+mapInstance: null,          // Keep this for Explorer tab
+itineraryMapInstance: null, // 🆕 Add this for Itinerary tab
+mapMarkers: [],            // Keep this for Explorer markers
+itineraryMarkers: [],       // 🆕 Add this for Itinerary markers
+itineraryPolyline: null
+           
+        };    
+        // 2. LOGIC MANAGER
+        const LogicManager = {
+        // Add this inside the const LogicManager = { ... } block:
+calculateHaversineDistance: function(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Returns distance in km
+},  
+// Add this right below your calculateHaversineDistance function inside LogicManager:
+syncItineraryDistance: function(steps) {
+    let totalDistance = 0;
+    const validCoords = steps.filter(step => step.coords && step.coords.length === 2);
+
+    for (let i = 0; i < validCoords.length - 1; i++) {
+        const start = validCoords[i].coords;
+        const end = validCoords[i + 1].coords;
+        totalDistance += LogicManager.calculateHaversineDistance(start[0], start[1], end[0], end[1]);
+    }
+
+    // Default to a 5km local minimum radius if the AI points are stacked tightly
+    if (totalDistance === 0) totalDistance = 5;
+
+    // Update global configuration state tracking
+    state.userInputs.distance = Math.round(totalDistance);
+
+    // Sync the input slider view display to mirror the calculated number
+    const slider = document.getElementById('distance-slider');
+    if (slider) slider.value = state.userInputs.distance;
+
+    // Trigger full redraw of price calculators and Chart.js bar graph layers
+    const freshPrices = LogicManager.calculatePrices();
+    UIManager.updatePriceDisplay(freshPrices);
+},
+            calculatePrices: function() {
+                const dist = state.userInputs.distance;
+                const rates = state.data.rates;
+                return {
+                    bike: { ourPrice: dist * rates.bike.base, marketPrice: dist * rates.bike.market },
+                    auto: { ourPrice: dist * rates.auto.base, marketPrice: dist * rates.auto.market },
+                    car:  { ourPrice: dist * rates.car.base, marketPrice: dist * rates.car.market }
+                };
+            },
+            getFilteredPlaces: async function() {
+                try {
+                    const response = await fetch(`http://127.0.0.1:8000/api/destinations?category=${state.ui.activeExplorerTab}`);
+                    if (response.ok) return await response.json();
+                } catch (error) {
+                    console.log("Server disconnected. Falling back to frontend local storage database.");
+                }
+                return state.ui.activeExplorerTab === 'all' 
+                    ? state.data.places 
+                    : state.data.places.filter(p => p.category === state.ui.activeExplorerTab);
+            },
+            generateItinerarySteps: async function() {
+                if(state.ui.isOffline) throw new Error("Network offline status context triggered.");
+                
+                const response = await fetch('http://127.0.0.1:8000/api/generate-itinerary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        season: state.userInputs.itinerary.season,
+                        focus: state.userInputs.itinerary.focus,
+                        start_time: state.userInputs.itinerary.startTime,
+                        variant: state.userInputs.itinerary.variant
+                    })
+                });
+                
+                const steps = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(steps.detail || "Server encountered an execution exception.");
+                }
+                
+                return steps;
+            }
         };
 
-        const distanceSlider = document.getElementById('distance-slider');
-        const distanceVal = document.getElementById('distance-val');
-        const pBike = document.getElementById('price-bike');
-        const pAuto = document.getElementById('price-auto');
-        const pCar = document.getElementById('price-car');
-
-        let priceChart;
-
-        function updatePrices() {
-            appState.distance = parseInt(distanceSlider.value);
-            distanceVal.textContent = appState.distance + ' km';
-
-            const ourBike = (appState.distance * appState.rates.bike.base).toFixed(2);
-            const ourAuto = (appState.distance * appState.rates.auto.base).toFixed(2);
-            const ourCar = (appState.distance * appState.rates.car.base).toFixed(2);
-
-            pBike.textContent = `$${ourBike}`;
-            pAuto.textContent = `$${ourAuto}`;
-            pCar.textContent = `$${ourCar}`;
-
-            if(priceChart) {
-                priceChart.data.datasets[0].data = [ourBike, ourAuto, ourCar];
-                priceChart.data.datasets[1].data = [
-                    (appState.distance * appState.rates.bike.market).toFixed(2),
-                    (appState.distance * appState.rates.auto.market).toFixed(2),
-                    (appState.distance * appState.rates.car.market).toFixed(2)
-                ];
-                priceChart.update();
-            }
-        }
-
-        distanceSlider.addEventListener('input', updatePrices);
-
-        function initChart() {
-            const ctx = document.getElementById('priceChart').getContext('2d');
-            priceChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Motorbike 🛵', 'Auto 🛺', 'AC Car 🚕'],
-                    datasets: [
-                        {
-                            label: 'Our Dynamic Price ($)',
-                            backgroundColor: '#C2410C', 
-                            data: [0, 0, 0],
-                            borderRadius: 4
-                        },
-                        {
-                            label: 'Avg Market Price ($)',
-                            backgroundColor: '#D6D3D1',
-                            data: [0, 0, 0],
-                            borderRadius: 4
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
-                        tooltip: {
-                            backgroundColor: 'rgba(28, 25, 23, 0.9)',
-                            titleFont: { size: 14 },
-                            bodyFont: { size: 13 },
-                            padding: 10,
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': $' + context.raw;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, grid: { color: '#F5F5F4' } },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        initChart();
-        updatePrices(); 
-
-        const explorerData = [
-            { title: "Old City Spice Market", category: "shopping", icon: "🌶️", time: "07:00 AM - 10:00 AM", desc: "Specialty market for local spices. Best visited early to avoid crowds." },
-            { title: "Silk Weavers District", category: "shopping", icon: "👗", time: "11:00 AM - 04:00 PM", desc: "Renowned market for specific traditional clothing and hand-woven silks." },
-            { title: "Grand Royal Palace", category: "heritage", icon: "🏰", time: "09:00 AM - 01:00 PM", desc: "Historical center. Guided services available at entry." },
-            { title: "Lumina Boutique Stays", category: "heritage", icon: "🏨", time: "24/7", desc: "Luxury stays next to the palace. Show this app for a free welcome drink.", sponsored: true },
-            { title: "Ancient Stepwell", category: "heritage", icon: "🏛️", time: "04:00 PM - 06:00 PM", desc: "Beautiful architectural heritage site, perfect for evening photography." },
-            { title: "Street Food Alley", category: "food", icon: "🍢", time: "06:00 PM - 11:00 PM", desc: "Experience the authentic local culture through street delicacies." },
-            { title: "Traditional Thali House", category: "food", icon: "🍛", time: "12:30 PM - 03:00 PM", desc: "Sit-down cultural food experience offering regional specialties." },
-            { title: "Global Cafe Co.", category: "food", icon: "☕", time: "08:00 AM - 10:00 PM", desc: "Reliable high-speed Wi-Fi and premium artisan coffee. Your perfect pitstop.", sponsored: true }
-        ];
-
-        const explorerGrid = document.getElementById('explorer-grid');
-        const exploreTabs = document.querySelectorAll('.explore-tab');
-
-        function renderExplorer(filter = 'all') {
-            explorerGrid.innerHTML = '';
-            const filtered = filter === 'all' ? explorerData : explorerData.filter(d => d.category === filter);
+        // 3. UI MANAGER
+        const UIManager = {
             
-            filtered.forEach(item => {
-                const card = document.createElement('div');
-                card.className = `bg-white border ${item.sponsored ? 'border-orange-200 bg-orange-50/30' : 'border-stone-200'} rounded-xl p-5 hover:shadow-md transition flex flex-col relative`;
-                
-                const sponsorBadge = item.sponsored ? '<div class="absolute top-4 right-4 text-[10px] font-bold text-orange-800 uppercase tracking-widest border border-orange-200 px-2 py-0.5 rounded bg-white">Ad</div>' : '';
-                
-                card.innerHTML = `
-                    ${sponsorBadge}
-                    <div class="text-3xl mb-3">${item.icon}</div>
-                    <h4 class="font-bold text-stone-800 text-lg mb-1">${item.title}</h4>
-                    <span class="inline-block bg-stone-100 text-stone-600 text-xs px-2 py-1 rounded mb-3 w-fit border border-stone-200">
-                        ⏱️ Directed Time: ${item.time}
-                    </span>
-                    <p class="text-sm text-stone-600 flex-1">${item.desc}</p>
-                    <button class="mt-4 text-sm font-bold text-orange-600 text-left hover:text-orange-800">
-                        ${item.sponsored ? 'View Offer &rarr;' : 'Add to Itinerary +'}
-                    </button>
-                `;
-                explorerGrid.appendChild(card);
-            });
-        }
+            // Add this function inside the const UIManager = { ... } object literal:
+exportTimelineToPDF: function() {
+    const element = document.getElementById('timeline-content');
+    const button = document.getElementById('export-pdf-btn');
+    
+    if (!element) return;
+    
+    button.disabled = true;
+    button.textContent = "Compiling PDF...";
 
-        exploreTabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                exploreTabs.forEach(t => {
-                    t.classList.remove('tab-active');
-                    t.classList.add('text-stone-500');
+    // Configure structural compilation variables for crisp resolution output
+    const options = {
+        margin:       [15, 15, 15, 15], // Set clean printing margins on all sides
+        filename:     `VoyagerAI-Itinerary-${state.userInputs.itinerary.season}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+            scale: 2,           // Keeps vectors crystal clear on render
+            useCORS: true,      
+            logging: false 
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(options).from(element).save().then(() => {
+        button.disabled = false;
+        button.textContent = "📥 Download PDF";
+    }).catch(err => {
+        console.error("PDF Export failed: ", err);
+        button.disabled = false;
+        button.textContent = "❌ Failed to Export";
+    });
+},
+            initTheme: function() {
+                const toggle = document.getElementById('theme-toggle');
+                toggle.addEventListener('click', () => {
+                    document.documentElement.classList.toggle('dark');
+                    state.ui.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+                    toggle.textContent = state.ui.theme === 'dark' ? '☀️' : '🌙';
+                    if (state.chartInstance) UIManager.updateChartTheme();
                 });
-                e.target.classList.add('tab-active');
-                e.target.classList.remove('text-stone-500');
-                renderExplorer(e.target.dataset.filter);
-            });
-        });
+            },
 
-        renderExplorer();
+            initNetworkStatus: function() {
+                const banner = document.getElementById('offline-banner');
+                window.addEventListener('online', () => { state.ui.isOffline = false; banner.classList.add('hide'); });
+                window.addEventListener('offline', () => { state.ui.isOffline = true; banner.classList.remove('hide'); });
+            },
 
-        document.getElementById('generate-btn').addEventListener('click', () => {
-            const season = document.getElementById('itinerary-season').value;
-            const focus = document.getElementById('itinerary-focus').value;
-            const startTime = document.getElementById('itinerary-time').value;
+            initAuthModal: function() {
+                const modal = document.getElementById('auth-modal');
+                document.getElementById('open-auth').addEventListener('click', () => modal.classList.remove('hide'));
+                document.getElementById('close-auth').addEventListener('click', () => modal.classList.add('hide'));
+                document.getElementById('login-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    modal.classList.add('hide');
+                    alert("Authentication UI integrated. Ready for Backend JWT connection.");
+                });
+            },
 
-            document.getElementById('timeline-placeholder').classList.add('hide');
-            const content = document.getElementById('timeline-content');
-            content.classList.remove('hide');
+            switchSection: function(targetId) {
+    state.ui.activeSection = targetId;
+    document.querySelectorAll('.content-section').forEach(s => s.classList.add('hide'));
+    document.getElementById(targetId).classList.remove('hide');
+
+    document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.remove('nav-active');
+        if(b.dataset.target === targetId) b.classList.add('nav-active');
+    });
+
+    if (targetId === 'transport' && state.chartInstance) state.chartInstance.update();
+    
+    // Force sizing recalibration for Leaflet instances upon activation viewport shifts
+    if (targetId === 'explorer') {
+        if (!state.mapInstance) {
+            UIManager.initMap();
+            UIManager.renderExplorer();
+        } else {
+            state.mapInstance.invalidateSize(); 
+        }
+    }
+    
+    // 🆕 Add this check right here to keep your itinerary map responsive!
+    if (targetId === 'itinerary' && state.itineraryMapInstance) {
+        state.itineraryMapInstance.invalidateSize();
+    }
+},
+
+            initMap: function() {
+                state.mapInstance = L.map('explorer-map').setView([28.6400, 77.2200], 12);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+                }).addTo(state.mapInstance);
+            },
+
+            updateMapMarkers: function(places) {
+                if (!state.mapInstance) return;
+                state.mapMarkers.forEach(marker => state.mapInstance.removeLayer(marker));
+                state.mapMarkers = [];
+                places.forEach(place => {
+                    if (place.coords) {
+                        const marker = L.marker(place.coords).addTo(state.mapInstance)
+                            .bindPopup(`<b>${place.icon} ${place.title}</b><br>${place.desc}`);
+                        state.mapMarkers.push(marker);
+                    }
+                });
+            },
+
+            updatePriceDisplay: function(prices) {
+                document.getElementById('price-bike').textContent = `$${prices.bike.ourPrice.toFixed(2)}`;
+                document.getElementById('price-auto').textContent = `$${prices.auto.ourPrice.toFixed(2)}`;
+                document.getElementById('price-car').textContent = `$${prices.car.ourPrice.toFixed(2)}`;
+                document.getElementById('distance-val').textContent = `${state.userInputs.distance} km`;
+
+                if (state.chartInstance) {
+                    state.chartInstance.data.datasets[0].data = [prices.bike.ourPrice.toFixed(2), prices.auto.ourPrice.toFixed(2), prices.car.ourPrice.toFixed(2)];
+                    state.chartInstance.data.datasets[1].data = [prices.bike.marketPrice.toFixed(2), prices.auto.marketPrice.toFixed(2), prices.car.marketPrice.toFixed(2)];
+                    state.chartInstance.update();
+                }
+            },
+
+            initChart: function() {
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                Chart.defaults.color = '#78716c'; 
+                state.chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Motorbike 🛵', 'Auto 🛺', 'AC Car 🚕'],
+                        datasets: [
+                            { label: 'Our Dynamic Price ($)', backgroundColor: '#C2410C', data: [0,0,0], borderRadius: 4 },
+                            { label: 'Avg Market Price ($)', backgroundColor: '#A8A29E', data: [0,0,0], borderRadius: 4 }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } }
+                });
+            },
+
+            updateChartTheme: function() {
+                Chart.defaults.color = state.ui.theme === 'dark' ? '#d6d3d1' : '#78716c';
+                state.chartInstance.update();
+            },
+
+            renderExplorer: async function() {
+                const grid = document.getElementById('explorer-grid');
+                const loader = document.getElementById('explorer-loader');
+                
+                grid.innerHTML = '';
+                loader.classList.remove('hide');
+
+                const filteredPlaces = await LogicManager.getFilteredPlaces();
+                loader.classList.add('hide');
+                
+                UIManager.updateMapMarkers(filteredPlaces);
+
+                filteredPlaces.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = `bg-white dark:bg-stone-800 border ${item.sponsored ? 'border-orange-200 dark:border-orange-800' : 'border-stone-200 dark:border-stone-700'} rounded-xl p-5 hover:shadow-md transition flex flex-col relative cursor-pointer`;
+                    
+                    card.onclick = () => { if(state.mapInstance && item.coords) state.mapInstance.flyTo(item.coords, 15); };
+
+                    const sponsorBadge = item.sponsored ? '<div class="absolute top-4 right-4 text-[10px] font-bold text-orange-800 dark:text-orange-300 uppercase tracking-widest border border-orange-200 dark:border-orange-800 px-2 py-0.5 rounded bg-white dark:bg-stone-900">Ad</div>' : '';
+                    
+                    card.innerHTML = `
+                        ${sponsorBadge}
+                        <div class="text-3xl mb-3">${item.icon}</div>
+                        <h4 class="font-bold text-lg mb-1">${item.title}</h4>
+                        <span class="inline-block bg-stone-100 dark:bg-stone-700 text-xs px-2 py-1 rounded mb-3 w-fit border border-stone-200 dark:border-stone-600">
+                            ⏱️ Directed Time: ${item.time}
+                        </span>
+                        <p class="text-sm text-stone-600 dark:text-stone-400 flex-1">${item.desc}</p>
+                        <button class="mt-4 text-sm font-bold text-orange-600 dark:text-orange-500 text-left hover:text-orange-800 dark:hover:text-orange-400">
+                            ${item.sponsored ? 'View Offer &rarr;' : 'Map it +'}
+                        </button>
+                    `;
+                    grid.appendChild(card);
+                });
+            },
             
-            content.innerHTML = '';
+clearItineraryMap: function () {
 
-            let timeParts = startTime.split(':');
-            let hour = parseInt(timeParts[0]);
+    if (!state.itineraryMapInstance) return;
 
-            const steps = [
-                { title: "Hotel Pickup & Guide Briefing", desc: "Meet your AI-assigned local guide.", icon: "🚕" },
-                { title: focus === 'shopping' ? "Silk Weavers District" : "Grand Royal Palace", desc: season === 'summer' ? "Morning visit to beat the heat." : "Comfortable morning exploration.", icon: focus === 'shopping' ? "👗" : "🏰" },
-                { title: "Local Cuisine Lunch", desc: "Pre-booked table at Traditional Thali House.", icon: "🍛" },
-                { title: focus === 'heritage' ? "Ancient Stepwell" : "Old City Spice Market", desc: "Afternoon activity grouped by proximity.", icon: focus === 'heritage' ? "🏛️" : "🌶️" },
-                { title: "Return Drop-off", desc: "Dynamic cab arranged based on real-time traffic.", icon: "🏨" }
-            ];
+    if (state.itineraryPolyline) {
+        state.itineraryMapInstance.removeLayer(state.itineraryPolyline);
+        state.itineraryPolyline = null;
+    }
 
-            steps.forEach((step, index) => {
-                const stepEl = document.createElement('div');
-                stepEl.className = 'relative';
+    state.itineraryMarkers.forEach(marker => {
+        state.itineraryMapInstance.removeLayer(marker);
+    });
+
+    state.itineraryMarkers = [];
+},
+
+toggleMilestoneCheckpoint: function(index, lat, lon) {
+    const isChecked = document.getElementById(`check-step-${index}`).checked;
+    const markerDot = document.getElementById(`marker-dot-${index}`);
+    const cardBody = document.getElementById(`card-body-${index}`);
+
+    state.itineraryMarkers.forEach(marker => {
+
+        if (!(marker instanceof L.Marker)) return;
+
+        const pos = marker.getLatLng();
+
+        if (Math.abs(pos.lat - lat) < 0.00001 &&
+            Math.abs(pos.lng - lon) < 0.00001) {
+
+            marker.setOpacity(isChecked ? 0.5 : 1.0);
+        }
+    });
+
+    if (isChecked) {
+        markerDot.className =
+            "absolute -left-[35px] md:-left-[47px] bg-emerald-600 text-white border-2 border-emerald-600 text-sm w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-md transition-colors duration-300";
+
+        markerDot.innerHTML = "✓";
+
+        cardBody.classList.add(
+            "border-emerald-500/40",
+            "bg-emerald-500/[0.02]"
+        );
+
+    } else {
+
+        markerDot.className =
+            "absolute -left-[35px] md:-left-[47px] bg-amber-500 text-white border-2 border-amber-500 text-sm w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-md transition-colors duration-300";
+
+        markerDot.innerHTML = index + 1;
+
+        cardBody.classList.remove(
+            "border-emerald-500/40",
+            "bg-emerald-500/[0.02]"
+        );
+    }
+},
+
+plotItineraryOnMap: function(steps) {
+    // 1. If the itinerary map doesn't exist yet, initialize it on the 'itinerary-map' div
+    if (!state.itineraryMapInstance) {
+        state.itineraryMapInstance = L.map('itinerary-map').setView([28.6400, 77.2200], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+        }).addTo(state.itineraryMapInstance);
+    } else {
+        // Force Leaflet to recalculate the map size in case its section container was hidden
+        state.itineraryMapInstance.invalidateSize();
+    }
+    
+    // 2. Clear out any old traces or markers from previous generations
+    UIManager.clearItineraryMap();
+    const latLngs = [];
+
+    // 3. Loop through the AI steps and add markers to the itinerary map instance
+    steps.forEach((step, index) => {
+        if (step.coords) {
+            latLngs.push(step.coords);
+            
+            const marker = L.marker(step.coords).addTo(state.itineraryMapInstance)
+                .bindPopup(`<b>Step ${index + 1}: ${step.icon} ${step.title}</b><br>${step.timeStr} - ${step.desc}`);
+            
+            // Save to our dedicated itinerary tracking array
+            state.itineraryMarkers.push(marker);
+        }
+    });
+
+    // 4. Draw the route trace connecting the dots
+    if (latLngs.length > 0) {
+        state.itineraryPolyline = L.polyline(latLngs, {
+            color: '#EA580C',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '8, 8', 
+            lineJoin: 'round'
+        }).addTo(state.itineraryMapInstance);
+
+        // Zoom the camera view to frame the itinerary path perfectly
+        const bounds = L.latLngBounds(latLngs);
+        state.itineraryMapInstance.fitBounds(bounds, { padding: [40, 40] });
+    }
+},
+            renderItinerary: async function() {
+                const placeholder = document.getElementById('timeline-placeholder');
+                const loader = document.getElementById('timeline-loader');
+                const content = document.getElementById('timeline-content');
                 
-                let timeStr = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
-                
-                stepEl.innerHTML = `
-                    <div class="absolute -left-[35px] md:-left-[47px] bg-orange-100 border-2 border-orange-500 text-xl w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-sm">${step.icon}</div>
-                    <div class="bg-stone-50 border border-stone-100 p-4 rounded-lg shadow-sm">
-                        <div class="text-xs font-bold text-orange-600 mb-1">${timeStr}</div>
-                        <h4 class="font-bold text-stone-800 text-lg">${step.title}</h4>
-                        <p class="text-sm text-stone-600 mt-1">${step.desc}</p>
-                    </div>
-                `;
-                content.appendChild(stepEl);
-                hour += Math.floor(Math.random() * 2) + 2; 
-                if(hour > 23) hour = hour - 24;
+                placeholder.classList.add('hide');
+                content.classList.add('hide');
+                content.innerHTML = '';
+                loader.classList.remove('hide');
+
+                try {
+                    const steps = await LogicManager.generateItinerarySteps();
+                    loader.classList.add('hide');
+                    content.classList.remove('hide');
+
+                    if (!Array.isArray(steps)) {
+                        throw new Error("Data stream structural compilation mismatch exception.");
+                    }
+
+                    steps.forEach((step,index) => {
+                        const stepEl = document.createElement('div');
+                        stepEl.className = 'relative';
+                        stepEl.innerHTML = `
+                            <div id="marker-dot-${index}" class="absolute -left-[35px] md:-left-[47px] bg-amber-500 text-white border-2 border-amber-500 text-sm w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-md">
+    ${index + 1}
+</div>
+                            <div id="card-body-${index}" class="bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 p-4 rounded-lg shadow-sm flex justify-between items-start gap-4">
+                                <div class="flex-1">
+    <div class="text-xs font-bold text-orange-600 dark:text-orange-500 mb-1">
+        ${step.timeStr}
+    </div>
+
+    <h4 class="font-bold text-lg">
+        ${step.title}
+    </h4>
+
+    <p class="text-sm text-stone-600 dark:text-stone-400 mt-1">
+        ${step.desc}
+    </p>
+</div>
+
+<div class="flex items-center justify-center pl-2" data-html2canvas-ignore="true">
+    <input
+        type="checkbox"
+        id="check-step-${index}"
+        onchange="UIManager.toggleMilestoneCheckpoint(${index},
+        ${step.coords ? step.coords[0] : 0},
+${step.coords ? step.coords[1] : 0})"
+        class="w-5 h-5 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600">
+        </div>
+
+</div>
+`;
+                        content.appendChild(stepEl);
+                    });
+
+                    // Call the visualization pipeline to draw markers and polyline traces
+                    UIManager.plotItineraryOnMap(steps);
+                    LogicManager.syncItineraryDistance(steps);
+
+                    // Locate this block inside UIManager.renderItinerary:
+const altCardEl = document.createElement('div');
+altCardEl.className = 'relative pt-4';
+
+// Update this part to include the data-html2canvas-ignore tags:
+altCardEl.innerHTML = `
+    <div data-html2canvas-ignore="true" class="absolute -left-[35px] md:-left-[47px] bg-orange-600 text-white border-2 border-orange-600 text-sm w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-md">🔄</div>
+    <div data-html2canvas-ignore="true" class="bg-gradient-to-r from-orange-500/10 to-transparent border border-orange-500/20 p-5 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h5 class="font-bold text-stone-800 dark:text-stone-200 text-sm">Not quite what you want?</h5>
+            <p class="text-xs text-stone-500 dark:text-stone-400">Gemini can generate multiple unique route variations for these exact choices.</p>
+        </div>
+        <button onclick="state.userInputs.itinerary.variant++; UIManager.renderItinerary()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-xs font-bold transition shadow-sm whitespace-nowrap">
+            Show Another Variant
+        </button>
+    </div>
+`;
+content.appendChild(altCardEl);
+
+// 🆕 Paste this safe element creation block right here:
+
+// 🆕 This is the perfectly cleaned-up export block with full variable names:
+const exportActionEl = document.createElement('div');
+exportActionEl.className = 'relative pt-2';
+exportActionEl.innerHTML = `
+    <div data-html2canvas-ignore="true" class="absolute -left-[35px] md:-left-[47px] bg-emerald-600 text-white border-2 border-emerald-600 text-sm w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-md">💾</div>
+    <div data-html2canvas-ignore="true" class="bg-stone-100 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 p-4 rounded-lg flex items-center justify-between">
+        <div>
+            <h5 class="font-bold text-sm">Need an offline copy?</h5>
+            <p class="text-xs text-stone-500">Export this custom plan as a beautifully formatted digital travel pass.</p>
+        </div>
+        <button id="export-pdf-btn" onclick="UIManager.exportTimelineToPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-xs font-bold transition shadow-sm whitespace-nowrap">
+            📥 Download PDF
+        </button>
+    </div>
+`;
+content.appendChild(exportActionEl);
+
+// Leave the remaining variantBtn listener code exactly as it is below:
+
+                } catch (error) {
+                    loader.classList.add('hide');
+                    content.classList.remove('hide');
+                    content.innerHTML = `
+                        <div class="text-center py-10 text-red-600 border border-red-200 bg-red-50 rounded-lg w-full">
+                            <div class="text-4xl mb-2">⚠️</div>
+                            <p class="font-bold">Failed to generate itinerary.</p>
+                            <p class="text-sm mt-1">${error.message}</p>
+                        </div>`;
+                }
+            }
+        };
+
+        // 4. INITIALIZATION ENGINE
+        function initApp() {
+            UIManager.initTheme();
+            UIManager.initNetworkStatus();
+            UIManager.initAuthModal();
+            UIManager.initChart();
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => UIManager.switchSection(e.currentTarget.dataset.target));
             });
-        });
 
+            document.getElementById('distance-slider').addEventListener('input', (e) => {
+                state.userInputs.distance = parseInt(e.target.value);
+                UIManager.updatePriceDisplay(LogicManager.calculatePrices());
+            });
+            UIManager.updatePriceDisplay(LogicManager.calculatePrices());
+
+            const exploreTabs = document.querySelectorAll('.explore-tab');
+            exploreTabs.forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    exploreTabs.forEach(t => {
+                        t.classList.remove('tab-active');
+                        t.classList.add('text-stone-500');
+                    });
+                    e.target.classList.add('tab-active');
+                    e.target.classList.remove('text-stone-500');
+                    state.ui.activeExplorerTab = e.target.dataset.filter;
+                    UIManager.renderExplorer();
+                });
+            });
+
+            const generateBtn = document.getElementById('generate-btn');
+            generateBtn.addEventListener('click', async () => {
+                state.userInputs.itinerary.season = document.getElementById('itinerary-season').value;
+                state.userInputs.itinerary.focus = document.getElementById('itinerary-focus').value;
+                state.userInputs.itinerary.startTime = document.getElementById('itinerary-time').value;
+                state.userInputs.itinerary.variant = 0; 
+                
+                generateBtn.disabled = true;
+                generateBtn.textContent = "Processing...";
+                
+            try{
+    await UIManager.renderItinerary();
+}
+finally{
+    generateBtn.disabled=false;
+    generateBtn.textContent="Generate Itinerary";
+}    
+            });    
+        }
+
+        initApp();
     </script>
 </body>
 </html>
