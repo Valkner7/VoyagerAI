@@ -380,44 +380,44 @@ itineraryMarkers: [],       // 🆕 Add this for Itinerary markers
 itineraryPolyline: null
            
         };    
-        // 2. LOGIC MANAGER
+// 2. LOGIC MANAGER
         const LogicManager = {
-        // Add this inside the const LogicManager = { ... } block:
-calculateHaversineDistance: function(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Returns distance in km
-},  
-// Add this right below your calculateHaversineDistance function inside LogicManager:
-syncItineraryDistance: function(steps) {
-    let totalDistance = 0;
-    const validCoords = steps.filter(step => step.coords && step.coords.length === 2);
+            // Hardcode your production Render URL for absolute reliability
+            BACKEND_URL: window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
+                ? "http://127.0.0.1:8000"
+                : "https://voyagerai-ob9e.onrender.com",
 
-    for (let i = 0; i < validCoords.length - 1; i++) {
-        const start = validCoords[i].coords;
-        const end = validCoords[i + 1].coords;
-        totalDistance += LogicManager.calculateHaversineDistance(start[0], start[1], end[0], end[1]);
-    }
+            calculateHaversineDistance: function(lat1, lon1, lat2, lon2) {
+                const R = 6371; // Earth's radius in kilometers
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = 
+                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c; 
+            },  
 
-    // Default to a 5km local minimum radius if the AI points are stacked tightly
-    if (totalDistance === 0) totalDistance = 5;
+            syncItineraryDistance: function(steps) {
+                let totalDistance = 0;
+                const validCoords = steps.filter(step => step.coords && step.coords.length === 2);
 
-    // Update global configuration state tracking
-    state.userInputs.distance = Math.round(totalDistance);
+                for (let i = 0; i < validCoords.length - 1; i++) {
+                    const start = validCoords[i].coords;
+                    const end = validCoords[i + 1].coords;
+                    totalDistance += LogicManager.calculateHaversineDistance(start[0], start[1], end[0], end[1]);
+                }
 
-    // Sync the input slider view display to mirror the calculated number
-    const slider = document.getElementById('distance-slider');
-    if (slider) slider.value = state.userInputs.distance;
+                if (totalDistance === 0) totalDistance = 5;
+                state.userInputs.distance = Math.round(totalDistance);
 
-    // Trigger full redraw of price calculators and Chart.js bar graph layers
-    const freshPrices = LogicManager.calculatePrices();
-    UIManager.updatePriceDisplay(freshPrices);
-},
+                const slider = document.getElementById('distance-slider');
+                if (slider) slider.value = state.userInputs.distance;
+
+                const freshPrices = LogicManager.calculatePrices();
+                UIManager.updatePriceDisplay(freshPrices);
+            },
+
             calculatePrices: function() {
                 const dist = state.userInputs.distance;
                 const rates = state.data.rates;
@@ -427,9 +427,10 @@ syncItineraryDistance: function(steps) {
                     car:  { ourPrice: dist * rates.car.base, marketPrice: dist * rates.car.market }
                 };
             },
+
             getFilteredPlaces: async function() {
                 try {
-                    const response = await fetch(`http://127.0.0.1:8000/api/destinations?category=${state.ui.activeExplorerTab}`);
+                    const response = await fetch(`${LogicManager.BACKEND_URL}/api/destinations?category=${state.ui.activeExplorerTab}`);
                     if (response.ok) return await response.json();
                 } catch (error) {
                     console.log("Server disconnected. Falling back to frontend local storage database.");
@@ -438,10 +439,11 @@ syncItineraryDistance: function(steps) {
                     ? state.data.places 
                     : state.data.places.filter(p => p.category === state.ui.activeExplorerTab);
             },
+
             generateItinerarySteps: async function() {
                 if(state.ui.isOffline) throw new Error("Network offline status context triggered.");
                 
-                const response = await fetch('http://127.0.0.1:8000/api/generate-itinerary', {
+                const response = await fetch(`${LogicManager.BACKEND_URL}/api/generate-itinerary`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
