@@ -121,9 +121,22 @@ def inject_coordinates(itinerary_list):
 # =========================================================
 # CONTROLLER ENDPOINTS LOGIC LAYER
 # =========================================================
-@app.get("/")
-async def root_status():
-    return {"status": "online", "engine": "Voyager.AI Core"}
+# PASTE THIS INSTEAD:
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_frontend():
+    try:
+        # 1. Open and read your frontend file
+        with open("index.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        
+        # 2. Send the HTML directly to the user's web browser
+        return HTMLResponse(content=html_content, status_code=200)
+        
+    except FileNotFoundError:
+        # Fallback error message if Python can't find the index.html file
+        return {"status": "online", "engine": "Voyager.AI Core", "note": "index.html file missing."}
 
 
 @app.get("/api/rates")
